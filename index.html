@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Lordiano</title>
+<style>
+body{
+  margin:0;
+  background:radial-gradient(circle at top,#111,#000);
+  color:#eee;
+  font-family:Georgia,serif;
+}
+#game{max-width:900px;margin:auto;padding:20px;}
+h1{text-align:center;letter-spacing:4px;}
+#log{
+  background:rgba(0,0,0,.65);
+  padding:20px;
+  border-radius:12px;
+  min-height:220px;
+  white-space:pre-line;
+  margin-bottom:15px;
+}
+button{
+  background:#222;color:#eee;
+  border:1px solid #555;
+  padding:10px 18px;
+  border-radius:6px;
+  cursor:pointer;
+}
+button:hover{background:#333}
+.stats{display:flex;justify-content:space-around;margin-bottom:10px;}
+</style>
+</head>
+
+<body>
+<div id="game">
+<h1>LORDIANO</h1>
+
+<div class="stats">
+<div>❤️ <span id="hp"></span></div>
+<div>⚔️ <span id="atk"></span></div>
+<div>🛡️ <span id="def"></span></div>
+<div>💉 <span id="vit"></span></div>
+</div>
+
+<div id="log"></div>
+<div id="actions"></div>
+</div>
+
+<script>
+// ===== AUDIO =====
+const audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+let osc,gain;
+function playMusic(t){
+ if(osc)osc.stop();
+ osc=audioCtx.createOscillator();
+ gain=audioCtx.createGain();
+ osc.connect(gain).connect(audioCtx.destination);
+ osc.type="sawtooth";
+ if(t==="calm"){osc.frequency.value=90;gain.gain.value=.03}
+ if(t==="battle"){osc.frequency.value=220;gain.gain.value=.06}
+ if(t==="boss"){osc.frequency.value=60;gain.gain.value=.09}
+ osc.start();
+}
+
+// ===== DADOS =====
+let player={atk:3,def:3,vit:3,hp:300,maxHp:300,points:0};
+let chapter=1,step=0,storyStep=0,storyLines=[],enemy=null;
+
+const log=document.getElementById("log");
+const actions=document.getElementById("actions");
+
+function updateUI(){
+ hp.textContent=`HP ${player.hp}/${player.maxHp}`;
+ atk.textContent=`ATK ${player.atk}`;
+ def.textContent=`DEF ${player.def}`;
+ vit.textContent=`VID ${player.vit}`;
+}
+function write(t){log.textContent=t}
+function clearActions(){actions.innerHTML=""}
+function btn(t,f){let b=document.createElement("button");b.textContent=t;b.onclick=f;actions.appendChild(b)}
+
+// ===== HISTÓRIA FRASE POR FRASE =====
+function startStory(lines,after){
+ playMusic("calm");
+ storyLines=lines;
+ storyStep=0;
+ showStory(after);
+}
+function showStory(after){
+ write(storyLines[storyStep]);
+ clearActions();
+ if(storyStep<storyLines.length-1){
+   btn("Continuar",()=>{storyStep++;showStory(after)});
+ }else{
+   btn("Continuar",after);
+ }
+}
+
+// ===== COMBATE =====
+function startBattle(e){
+ enemy=JSON.parse(JSON.stringify(e));
+ playMusic(e.boss?"boss":"battle");
+ combat();
+}
+function combat(){
+ updateUI();
+ write(enemy.name+"\n\nHP do inimigo: "+enemy.hp);
+ clearActions();
+ btn("Atacar",attack);
+}
+function attack(){
+ enemy.hp-=Math.max(1,player.atk*10-enemy.def*3);
+ if(enemy.hp<=0){victory();return}
+ player.hp-=Math.max(1,enemy.atk*8-player.def*2);
+ if(player.hp<=0){defeat();return}
+ combat();
+}
+function victory(){
+ playMusic("calm");
+ player.points+=5;
+ write("A batalha termina.\nVocê permanece de pé.\nAlgo dentro de você muda.");
+ clearActions();
+ btn("Distribuir pontos",points);
+}
+function defeat(){
+ playMusic("calm");
+ write("Sua força se esvai.\nO mundo escurece.\nVocê cai.");
+ clearActions();
+ btn("Recomeçar capítulo",restartChapter);
+}
+function points(){
+ write("Pontos disponíveis: "+player.points);
+ clearActions();
+ ["atk","def","vit"].forEach(s=>{
+  btn("+"+s,()=>{
+   if(player.points>0){
+    player[s]++;
+    if(s==="vit"){player.maxHp+=50;player.hp+=50}
+    player.points--;
+    points();
+   }
+  })
+ });
+ btn("Continuar",nextEvent);
+}
+
+// ===== CONTROLE =====
+function restartChapter(){
+ player.hp=player.maxHp;
+ step=0;
+ if(chapter===1)chapter1();
+ if(chapter===2)chapter2();
+ if(chapter===3)chapter3();
+}
+function nextEvent(){
+ if(chapter===1)chapter1(true);
+ if(chapter===2)chapter2(true);
+ if(chapter===3)chapter3(true);
+}
+
+// ===== CAPÍTULO 1 =====
+function chapter1(cont){
+ chapter=1;if(!cont)step=0;
+ const seq=[
+ ()=>startStory([
+ "Você viveu toda a sua existência escondido.",
+ "A caverna era tudo o que conhecia.",
+ "Sua raça foi esquecida pelo mundo.",
+ "Um dia, algo dentro de você muda.",
+ "Você decide sair.",
+ "A luz machuca seus olhos.",
+ "O mundo é maior, mais vivo… e mais perigoso.",
+ "Enquanto observa uma árvore, passos pesados se aproximam.",
+ "O caçador sênior Gastor te encontra.",
+ "Sem diálogo.",
+ "Sem piedade."
+ ],()=>startBattle({name:"Gastor",atk:2,def:2,vit:1,hp:100})),
+
+ ()=>startStory([
+ "Você vence.",
+ "Mas não há vitória.",
+ "Você foge.",
+ "A equipe de Gastor espalha seu nome.",
+ "Luderberg entra em alerta.",
+ "Caçadores te procuram.",
+ "Exausto, você encontra uma toca.",
+ "Ela já tem dono.",
+ "O lobo rosna."
+ ],()=>startBattle({name:"Lobo",atk:4,def:3,vit:3,hp:200})),
+
+ ()=>startStory([
+ "A noite passa.",
+ "Você dorme pouco.",
+ "Ao acordar, sente uma presença.",
+ "Uma sombra.",
+ "Metal rasga o ar.",
+ "Um soldado te encara.",
+ "Ele não te vê como ser vivo."
+ ],()=>startBattle({name:"Soldado",atk:5,def:2,vit:8,hp:350}))
+ ];
+ seq[step++]?seq[step-1](): (chapter=2,step=0,chapter2());
+}
+
+// ===== CAPÍTULO 2 =====
+function chapter2(cont){
+ chapter=2;if(!cont)step=0;
+ const seq=[
+ ()=>startStory([
+ "Você corre.",
+ "Sem destino.",
+ "Até encontrar Legstown.",
+ "Uma cidade portuária.",
+ "Gritos.",
+ "Portas se fecham.",
+ "O delegado real surge.",
+ "Claster empunha sua arma.",
+ "Ele exige um duelo."
+ ],()=>startBattle({name:"Claster",atk:5,def:10,vit:5,hp:400})),
+
+ ()=>startStory([
+ "Legstown se esvazia.",
+ "Navios partem.",
+ "Você anda sozinho.",
+ "Um Ogro surge.",
+ "Ele carrega o mesmo sangue.",
+ "Ele pede um duelo.",
+ "Você aceita.",
+ "Não há aliados."
+ ],()=>startBattle({name:"Ogro",atk:10,def:10,vit:5,hp:450})),
+
+ ()=>startStory([
+ "Você foge.",
+ "O Império te caça.",
+ "Uma armadilha.",
+ "A mata se fecha.",
+ "O General Kurt aparece.",
+ "Ele sorri."
+ ],()=>startBattle({name:"General Kurt",atk:10,def:10,vit:10,hp:500}))
+ ];
+ seq[step++]?seq[step-1](): (chapter=3,step=0,chapter3());
+}
+
+// ===== CAPÍTULO 3 =====
+function chapter3(cont){
+ chapter=3;if(!cont)step=0;
+ const seq=[
+ ()=>startStory([
+ "Você sai da toca.",
+ "A noite domina tudo.",
+ "A fome dói.",
+ "Uma carniça.",
+ "Um rosnado.",
+ "Uma hiena gigante avança.",
+ "Viver ou morrer."
+ ],()=>startBattle({name:"Hiena",atk:15,def:5,vit:15,hp:550})),
+
+ ()=>startStory([
+ "A carne tem gosto ruim.",
+ "Mas você sobrevive.",
+ "Anda sem rumo.",
+ "Sem saber, chega à capital do Império.",
+ "O alarme soa.",
+ "O exército te cerca."
+ ],()=>startBattle({name:"Exército",atk:15,def:15,vit:10,hp:600})),
+
+ ()=>startStory([
+ "O silêncio cai.",
+ "O rei aparece.",
+ "Pertgader.",
+ "Ele te chama de monstro.",
+ "Você se ofende.",
+ "Sua raça.",
+ "Seu ego.",
+ "Seu destino."
+ ],()=>startBattle({name:"Rei Pertgader",atk:20,def:10,vit:20,hp:700,boss:true}))
+ ];
+ seq[step++]?seq[step-1]():ending();
+}
+
+// ===== FINAL =====
+function ending(){
+ playMusic("calm");
+ let f=player.atk>=player.def&&player.atk>=player.vit?"FORJADOR":
+       player.def>=player.atk&&player.def>=player.vit?"ANCIÃO":"POMBO DA PAZ";
+ write("FINAL: "+f+"\n\nSua jornada nunca terminará.\n\nCréditos:\nAtlas");
+ clearActions();
+}
+
+playMusic("calm");
+updateUI();
+chapter1();
+</script>
+</body>
+</html>
